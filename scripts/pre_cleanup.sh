@@ -3,6 +3,8 @@
 # Pre-Cleanup Script (BeforeInstall)
 # =====================================
 
+echo "Running $(basename $0)" | tee -a /var/log/deploy_debug.log
+
 LOG_FILE="/var/log/pre_cleanup.log"
 
 echo "🧹 Starting pre-cleanup..." | tee -a $LOG_FILE
