@@ -3,6 +3,10 @@
 # Main Deployment Script (AfterInstall)
 # =====================================
 
+set -e
+export DEBIAN_FRONTEND=noninteractive
+echo "Running $(basename $0)" | tee -a /var/log/deploy_debug.log
+
 LOG_FILE="/var/log/deploy.log"
 SOURCE_DIR="/opt/new_deploy"
 DEST_DIR="/var/www/html"
@@ -10,21 +14,24 @@ DEST_DIR="/var/www/html"
 echo "🚀 Starting deployment..." | tee -a $LOG_FILE
 
 # Step 1: Install Apache & PHP (before copying files)
-export DEBIAN_FRONTEND=noninteractive
 apt-get update -y >> $LOG_FILE 2>&1
 apt-get install -y apache2 php php-mysqli php-cli php-zip unzip curl ruby >> $LOG_FILE 2>&1
 systemctl enable apache2 >> $LOG_FILE 2>&1
 
-# Step 2: Copy new files to web root
+# Step 2: Ensure directories exist before copying
+mkdir -p $SOURCE_DIR
+mkdir -p $DEST_DIR
+
+# Step 3: Copy new files to web root
 echo "📁 Copying files from $SOURCE_DIR to $DEST_DIR..." | tee -a $LOG_FILE
 cp -r $SOURCE_DIR/* $DEST_DIR/ || { echo "❌ File copy failed!" | tee -a $LOG_FILE; exit 1; }
 echo "✅ Files copied successfully to $DEST_DIR." | tee -a $LOG_FILE
 
-# Step 3: Fix permissions
+# Step 4: Fix permissions
 chown -R www-data:www-data $DEST_DIR
 chmod -R 755 $DEST_DIR
 
-# Step 4: Install Composer (if not installed)
+# Step 5: Install Composer (if not installed)
 if ! command -v composer &> /dev/null; then
   echo "📦 Installing Composer..." | tee -a $LOG_FILE
   EXPECTED_SIGNATURE="$(curl -s https://composer.github.io/installer.sig)"
@@ -41,22 +48,23 @@ if ! command -v composer &> /dev/null; then
   echo "✅ Composer installed successfully." | tee -a $LOG_FILE
 fi
 
-# Step 5: Install AWS SDK via Composer (only if not already present)
+# Step 6: Install AWS SDK via Composer (only if not already present)
 cd $DEST_DIR
 if [ ! -f "composer.json" ]; then
   echo "🧾 Creating composer.json for AWS SDK..." | tee -a $LOG_FILE
   echo '{"require": {"aws/aws-sdk-php": "^3.0"}}' > composer.json
 fi
 
+export PATH="$PATH:/usr/local/bin"
 echo "📦 Installing AWS SDK for PHP..." | tee -a $LOG_FILE
-composer install --no-dev --optimize-autoloader >> $LOG_FILE 2>&1
+composer install --no-dev --optimize-autoloader --no-interaction >> $LOG_FILE 2>&1
 echo "✅ AWS SDK installed successfully." | tee -a $LOG_FILE
 
-# Step 6: Restart Apache AFTER dependencies installed
+# Step 7: Restart Apache AFTER dependencies installed
 systemctl restart apache2 >> $LOG_FILE 2>&1
 echo "✅ Apache restarted and dependencies ready." | tee -a $LOG_FILE
 
-# Step 7: Verify index.php and vendor folder exist
+# Step 8: Verify index.php and vendor folder exist
 if [ -f "$DEST_DIR/index.php" ] && [ -f "$DEST_DIR/vendor/autoload.php" ]; then
   echo "✅ index.php and vendor/autoload.php verified." | tee -a $LOG_FILE
 else
@@ -66,4 +74,3 @@ fi
 
 echo "🎉 Deployment complete! Application is live." | tee -a $LOG_FILE
 exit 0
-

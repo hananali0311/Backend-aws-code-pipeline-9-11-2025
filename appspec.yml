@@ -6,6 +6,8 @@ files:
     destination: /opt/new_deploy
     overwrite: true
 
+file_exists_behavior: OVERWRITE
+
 hooks:
   BeforeInstall:
     - location: scripts/pre_cleanup.sh
@@ -16,4 +18,3 @@ hooks:
     - location: scripts/deploy.sh
       timeout: 600
       runas: root
-
